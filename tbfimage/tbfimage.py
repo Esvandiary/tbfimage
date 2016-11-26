@@ -1,6 +1,7 @@
 from __future__ import print_function, division
 from . import bitstring
 from . import lzw
+import math
 import sys
 import wand.image as wi
 import wand.color as wc
@@ -39,6 +40,9 @@ class TBFFrame(object):
 
   def set_pixel(self, x, y, pval):
     self.pixels[y*self.width + x] = pval
+
+  def get_pixel(self, x, y):
+    return self.pixels[y*self.width + x]
 
   def draw(self, img, zoom = 1):
     with wd.Drawing() as draw:
@@ -80,6 +84,32 @@ class TBFImage(object):
       anim.type = 'optimize'
       anim.save(filename=filename)
 
+  def to_file(self, filename, use_lzw = False):
+    b = bitstring.BitArray()
+    b.append('0b1' if self.format == FORMAT_RGB else '0b0')
+    b.append('0b1' if use_lzw else '0b0')
+    bl = max(math.ceil(math.log2(self.width)), math.ceil(math.log2(self.height)))
+    b.append("0b{0:04b}".format(bl - 1))
+    b.append("0b{{0:0{0}b}}".format(bl).format(self.width - 1))
+    b.append("0b{{0:0{0}b}}".format(bl).format(self.height - 1))
+
+    pixeldata = bitstring.BitArray()
+    for frame in self.frames:
+      for y in range(0, frame.height):
+        for x in range(0, frame.width):
+          pixeldata.append("0b{0:1b}{1:1b}{2:1b}".format(*frame.get_pixel(x, y)))
+      if len(self.frames) > 1:
+        pixeldata.append("0b{0:8b}".format(frame.duration))
+
+    if use_lzw:
+      pdc = list(lzw.compress(pixeldata.tobytes()))
+      b.append(bitstring.BitArray(bytes=b''.join(pdc)))
+    else:
+      b.append(pixeldata)
+
+    with open(filename, "wb") as f:
+      f.write(b.tobytes())
+
 
 def _unpack_value(format, b):
   if format == FORMAT_RGB:
@@ -105,8 +135,9 @@ def from_file(filename):
     img = TBFImage(format, width, height)
     pixeldata = b[pos:]
     if uses_lzw:
+      print(pixeldata)
       pdd = list(lzw.decompress(pixeldata.tobytes()))
-      pixeldata = bitstring.BitArray('hex=0x{0}'.format("".join(["{0:02X}".format(ord(n)) for n in pdd])))
+      pixeldata = bitstring.BitArray(bytes=b''.join(pdd))
     pos = 0  # now indexing into pixeldata
     while len(pixeldata) >= pos + framelen:
       frame = img.start_frame()
