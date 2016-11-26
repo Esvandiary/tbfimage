@@ -97,9 +97,9 @@ class TBFImage(object):
     for frame in self.frames:
       for y in range(0, frame.height):
         for x in range(0, frame.width):
-          pixeldata.append("0b{0:1b}{1:1b}{2:1b}".format(*frame.get_pixel(x, y)))
+          pixeldata.append(_pack_value(self.format, frame.get_pixel(x, y)))
       if len(self.frames) > 1:
-        pixeldata.append("0b{0:8b}".format(frame.duration))
+        pixeldata.append("0b{0:08b}".format(frame.duration))
 
     if use_lzw:
       pdc = list(lzw.compress(pixeldata.tobytes()))
@@ -120,6 +120,21 @@ def _unpack_value(format, b):
     raise Exception("tried to unpack a value with an invalid format")
 
 
+def _pack_value(format, val):
+  if format == FORMAT_RGB:
+    b = bitstring.BitArray()
+    b.append('0b1' if val[0] else '0b0')
+    b.append('0b1' if val[1] else '0b0')
+    b.append('0b1' if val[2] else '0b0')
+    return b
+  elif format == FORMAT_BW:
+    b = bitstring.BitArray()
+    b.append('0b1' if val else '0b0')
+    return b
+  else:
+    raise Exception("tried to pack a value with an invalid format")
+
+
 def from_file(filename):
   with open(filename, "rb") as f:
     data = f.read()
@@ -135,7 +150,6 @@ def from_file(filename):
     img = TBFImage(format, width, height)
     pixeldata = b[pos:]
     if uses_lzw:
-      print(pixeldata)
       pdd = list(lzw.decompress(pixeldata.tobytes()))
       pixeldata = bitstring.BitArray(bytes=b''.join(pdd))
     pos = 0  # now indexing into pixeldata
