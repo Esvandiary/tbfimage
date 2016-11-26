@@ -14,18 +14,18 @@ DEFAULT_COLOR = {FORMAT_BW: 0, FORMAT_RGB: (0, 0, 0)}
 
 COLORS = {
   FORMAT_BW: {
-    0: wc.Color('#000'),
-    1: wc.Color('#FFF'),
+    0b0: wc.Color('#000'),
+    0b1: wc.Color('#FFF'),
   },
   FORMAT_RGB: {
-    (0, 0, 0): wc.Color('#000'),
-    (1, 0, 0): wc.Color('#F00'),
-    (1, 1, 0): wc.Color('#FF0'),
-    (1, 0, 1): wc.Color('#F0F'),
-    (0, 1, 0): wc.Color('#0F0'),
-    (0, 1, 1): wc.Color('#0FF'),
-    (0, 0, 1): wc.Color('#00F'),
-    (1, 1, 1): wc.Color('#FFF'),
+    0b000: wc.Color('#000'),
+    0b100: wc.Color('#F00'),
+    0b110: wc.Color('#FF0'),
+    0b101: wc.Color('#F0F'),
+    0b010: wc.Color('#0F0'),
+    0b011: wc.Color('#0FF'),
+    0b001: wc.Color('#00F'),
+    0b111: wc.Color('#FFF'),
   },
 }
 
@@ -42,14 +42,18 @@ class TBFFrame(object):
     self.pixels[y*self.width + x] = pval
 
   def get_pixel(self, x, y):
-    return self.pixels[y*self.width + x]
+    px = self.pixels[y*self.width + x]
+    return ((px >> 2) & 1, (px >> 1) & 1, (px >> 0) & 1)
 
   def draw(self, img, zoom = 1):
     with wd.Drawing() as draw:
       for y in range(self.height):
         for x in range(self.width):
           draw.fill_color = COLORS[self.format][self.pixels[y*self.width + x]]
-          draw.rectangle(left=x*zoom, top=y*zoom, width=zoom, height=zoom)
+          if zoom != 1:
+            draw.rectangle(left=x*zoom, top=y*zoom, width=zoom, height=zoom)
+          else:
+            draw.point(x, y)
       draw(img)
 
 
@@ -97,13 +101,13 @@ class TBFImage(object):
     for frame in self.frames:
       for y in range(0, frame.height):
         for x in range(0, frame.width):
-          pixeldata.append(_pack_value(self.format, frame.get_pixel(x, y)))
+          pixeldata.append(_pack_value(self.format, frame.pixels[y*self.width + x]))
       if len(self.frames) > 1:
         pixeldata.append("0b{0:08b}".format(frame.duration))
 
     if use_lzw:
       pdc = list(lzw.compress(pixeldata.tobytes()))
-      b.append(bitstring.BitArray(bytes=b''.join(pdc)))
+      b.append(bitstring.ConstBitStream(bytes=b''.join(pdc)))
     else:
       b.append(pixeldata)
 
@@ -113,24 +117,18 @@ class TBFImage(object):
 
 def _unpack_value(format, b):
   if format == FORMAT_RGB:
-    return (int(b[0]), int(b[1]), int(b[2]))
+    return b.read('uint:3')
   elif format == FORMAT_BW:
-    return int(b[0])
+    return b.read('uint:1')
   else:
     raise Exception("tried to unpack a value with an invalid format")
 
 
 def _pack_value(format, val):
   if format == FORMAT_RGB:
-    b = bitstring.BitArray()
-    b.append('0b1' if val[0] else '0b0')
-    b.append('0b1' if val[1] else '0b0')
-    b.append('0b1' if val[2] else '0b0')
-    return b
+    return bitstring.BitArray('0b{0:b}'.format(val))
   elif format == FORMAT_BW:
-    b = bitstring.BitArray()
-    b.append('0b1' if val else '0b0')
-    return b
+    return bitstring.BitArray('0b{0:b}'.format(val))
   else:
     raise Exception("tried to pack a value with an invalid format")
 
@@ -138,28 +136,25 @@ def _pack_value(format, val):
 def from_file(filename):
   with open(filename, "rb") as f:
     data = f.read()
-    b = bitstring.BitArray(data)
-    format = FORMAT_RGB if b[0] else FORMAT_BW
+    b = bitstring.ConstBitStream(data)
+    format = FORMAT_RGB if b.read('bool') else FORMAT_BW
     pixelsize = PIXELSIZE[format]
-    uses_lzw = True if b[1] else False
-    bl = b[2:6].uint + 1
-    pos = 6
-    width = b[pos:pos+bl].uint + 1; pos += bl
-    height = b[pos:pos+bl].uint + 1; pos += bl
+    uses_lzw = True if b.read('bool') else False
+    bl = b.read('uint:4') + 1
+    width = b.read('uint:{0}'.format(bl)) + 1
+    height = b.read('uint:{0}'.format(bl)) + 1
     framelen = (pixelsize * width * height)
     img = TBFImage(format, width, height)
-    pixeldata = b[pos:]
+    pixeldata = b.read(len(b) - b.pos)
     if uses_lzw:
       pdd = list(lzw.decompress(pixeldata.tobytes()))
-      pixeldata = bitstring.BitArray(bytes=b''.join(pdd))
-    pos = 0  # now indexing into pixeldata
-    while len(pixeldata) >= pos + framelen:
+      pixeldata = bitstring.ConstBitStream(bytes=b''.join(pdd))
+    while len(pixeldata) >= pixeldata.pos + framelen:
       frame = img.start_frame()
       for y in range(height):
         for x in range(width):
-          val = _unpack_value(format, pixeldata[pos:pos+pixelsize])
+          val = _unpack_value(format, pixeldata)
           frame.set_pixel(x, y, val)
-          pos += pixelsize
-      if len(pixeldata) >= pos + 8:
-        frame.duration = pixeldata[pos:pos+8].uint; pos += 8
+      if len(pixeldata) >= pixeldata.pos + 8:
+        frame.duration = pixeldata.read('uint:8')
     return img
