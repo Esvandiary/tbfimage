@@ -5,7 +5,7 @@ A Python decoding library for the lesser-known TBF image file format.
 The library requires the `six` and `wand` packages.
 
 ## Usage
-Support is present reading images in the TBF format (including LZW compression) and saving them to still images and animated GIFs.
+Support is present for reading images in the TBF format (including LZW compression) and saving to still images and animated GIFs.
 
 Example:
 
