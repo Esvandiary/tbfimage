@@ -1,0 +1,322 @@
+﻿
+
+
+
+    Cover Sheet for the Tiny Bitmap Specification
+
+
+    Due to the low quality Internet connections in Poland, we set out to define
+	an image format for really small images.  This way Polish internet users
+	will have glorious loading times for web pages using this new and superior
+	format. 
+
+    APPLICATION EXTENSION BLOCK - APPLICATION IDENTIFIER
+
+    There will be a Courtesy Directory file located on InfoPolska in the PICS
+    forum.  This directory will contain Application Identifiers for Application
+    Extension Blocks that have been used by developers of TBF applications.
+    This file is intended to help keep developers that wish to create
+    Application Extension Blocks from using the same Application Identifiers.
+    This is not an official directory; it is for voluntary participation only
+    and does not guarantee that someone will not use the same identifier.
+
+    E-Mail can be sent to Szymon Zieliński (forum manager of PICS) indicating the
+    request for inclusion in this file with an identifier.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               TINY BITMAP FORMAT
+
+                                  Version 0.1b
+
+                                    (c)1975
+
+                                   Copyright
+                            InfoPolska Incorporated
+                               Bydgoszcz, Poland
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+InfoPolska Incorporated                                    Tiny Bitmap Format
+Document Date : 13 September 1975                      Programming Reference
+
+
+
+
+
+
+
+
+
+
+                               Table of Contents
+
+Disclaimer.................................................................  1
+
+Foreword...................................................................  1
+
+Licensing..................................................................  1
+
+Format Specification.......................................................  2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                         1
+
+
+1. Disclaimer.
+
+The information provided herein is subject to change without notice. In no
+event will InfoPolska Incorporated be liable for damages, including any loss of
+revenue, loss of profits or other incidental or consequential damages arising
+out of the use or inability to use the information; InfoPolska Incorporated
+makes no claim as to the suitability of the information.
+
+
+2. Foreword.
+
+This document defines the Tiny Bitmap Format(sm). The specification
+given here defines version 0.1b.
+
+The Tiny Bitmap Format(sm) as specified here should be considered
+complete; any deviation from it should be considered invalid, including but not
+limited to, the use of reserved or undefined fields within control or data
+blocks, the inclusion of extraneous data within or between blocks, the use of
+methods or algorithms not specifically listed as part of the format, etc. In
+general, any and all deviations, extensions or modifications not specified in
+this document should be considered to be in violation of the format and should
+be avoided.
+
+
+3. Licensing.
+
+The Tiny Bitmap Format(c) is the copyright property of InfoPolska
+Incorporated. Only InfoPolska Incorporated is authorized to define, redefine,
+enhance, alter, modify or change in any way the definition of the format.
+
+InfoPolska Incorporated hereby grants a limited, non-exclusive, royalty-free
+license for the use of the Tiny Bitmap Format(sm) in computer
+software; computer software utilizing TBF(sm) must acknowledge ownership of the
+Tiny Bitmap Format and its Service Mark by InfoPolska Incorporated, in
+User and Technical Documentation. Computer software utilizing TBF, which is
+distributed or may be distributed without User or Technical Documentation must
+display to the screen or printer a message acknowledging ownership of the
+Tiny Bitmap Format and the Service Mark by InfoPolska Incorporated; in
+this case, the acknowledgement may be displayed in an opening screen or leading
+banner, or a closing screen or trailing banner. A message such as the following
+may be used:
+
+      "The Tiny Bitmap Format(c) is the Copyright property of
+      InfoPolska Incorporated. TBF(sm) is a Service Mark property of
+      InfoPolska Incorporated."
+
+For further information, please contact :
+
+      InfoPolska Incorporated
+      Graphics Technology Department
+      Jagiellońska 13-15
+      85-067 Bydgoszcz
+      Poland
+
+	  
+	  
+
+
+
+
+
+
+
+                                                                         2
+
+
+
+4. Format Specification.
+
+The header of the file contains: channels, compression, width, and height. 
+There is no magic in the header, the file just starts with relevant data. 
+Data is not aligned to byte boundaries, which would be a waste of space.
+
+The first bit in the file describes the number of channels in the image. The
+value 0 means that the image has one channel, i.e. B/W. The value 1 means that
+the image has three channels, i.e. RGB. The bit depth in each channel is always
+1. Each pixel in a B/W image is one bit, and each pixel in a RGB image is 3 
+bits large.
+
+The second bit in the header is the compression flag. If the flag is 1 LZW 
+compression is enabled, and if the flag is 0 there is no compression used. If 
+compression is used, the pixel data is compressed. The header is always 
+uncompressed.
+
+The next 4 bits describes the bit-length of the following width and height 
+fields. A value of 0 in this field means that the bit-length of width/height
+is 1, a value of 1 means that the bit-length is 2 etc. This means that the
+bit-length of width/length can be between 1 and 16, inclusive. The bit-length
+is called BL.
+
+The next BL bits describes the width of the image. In the same way as before,
+a value of 0, means a width of 1 etc.
+
+The next BL bits describes the height of the image, in the same manner as the 
+width.
+
+After the header follows the pixel data. The following definition assumes that 
+the pixel data is already decompressed, if compression is used. Each pixel is 
+described according to the number of channels. A B/W image has one bit per 
+pixel, and a RGB image has 3 bits per pixel. one bit for red, one for green, 
+and one for blue (in that order). The pixels are stored in rows, meaning that 
+the top left pixel in the image is the first, followed by the next pixel in the
+top row, etc. After the last pixel of the  first row follows the first pixel of
+the second row etc. 
+
+The bit string that constitutes the entire file is padded with zeroes to the 
+next multiple of 8, and each 8-bit block is stored as a byte, using the first 
+bit as the most significant bit.
+
+
+Below is an example of an uncompressed 2x2 RGB image, containing a red, a 
+green, a blue, and a white pixel.
+
+      7 6 5 4 3 2 1 0        Description
+     +---+-------+---+
+  0  |1 0|0 0 0 1|0 1|       Header (Flags, Dimensions)
+     +---+-------+---+
+  1  |0 1|1 0 0 0 1 0|       Header / Image Data
+     +---+-         -+
+  2  |0 0 1 1 1 1 0 0|
+     +---------------+
+	 
+The resulting image is three bytes large, and the hexadecimal representation of
+the entire file is 0x8AA23C.
+
+
+
+
+
+
+
+
+
+
+
+A. Appendix 1, Animations.
+
+If the data block fits multiple images then the image is to be considered an
+animation. Between each frame there are eight bits which describes the duration
+of the last frame in milliseconds. The padding to 8-bit bytes is done only at 
+the end of the file. Animation support is optional.
