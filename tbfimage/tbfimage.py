@@ -81,7 +81,7 @@ class TBFImage(object):
       anim.save(filename=filename)
 
 
-def unpack_value(format, b):
+def _unpack_value(format, b):
   if format == FORMAT_RGB:
     return (int(b[0]), int(b[1]), int(b[2]))
   elif format == FORMAT_BW:
@@ -112,7 +112,7 @@ def from_file(filename):
       frame = img.start_frame()
       for y in range(height):
         for x in range(width):
-          val = unpack_value(format, pixeldata[pos:pos+pixelsize])
+          val = _unpack_value(format, pixeldata[pos:pos+pixelsize])
           frame.set_pixel(x, y, val)
           pos += pixelsize
       if len(pixeldata) >= pos + 8:
