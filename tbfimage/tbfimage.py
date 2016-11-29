@@ -32,6 +32,8 @@ COLORS = {
 
 class TBFFrame(object):
   def __init__(self, format, width, height, pixels = None, duration = None):
+    if format not in (FORMAT_BW, FORMAT_RGB):
+      raise ValueError("invalid format specified when creating TBFFrame")
     self.format = format
     self.width = width
     self.height = height
@@ -39,11 +41,20 @@ class TBFFrame(object):
     self.duration = duration
 
   def set_pixel(self, x, y, pval):
-    self.pixels[y*self.width + x] = pval
+    self.pixels[y*self.width + x] = sum([pval[i] << (len(pval)-(i+1)) for i in range(len(pval))])
 
   def get_pixel(self, x, y):
     px = self.pixels[y*self.width + x]
-    return ((px >> 2) & 1, (px >> 1) & 1, (px >> 0) & 1)
+    if format == FORMAT_RGB:
+      return ((px >> 2) & 1, (px >> 1) & 1, (px >> 0) & 1)
+    else:
+      return (px & 1)
+
+  def set_raw_pixel(self, x, y, pval):
+    self.pixels[y*self.width + x] = pval
+
+  def get_raw_pixel(self, x, y):
+    return self.pixels[y*self.width + x]
 
   def draw(self, img, zoom = 1):
     with wd.Drawing() as draw:
@@ -59,6 +70,8 @@ class TBFFrame(object):
 
 class TBFImage(object):
   def __init__(self, format, width, height):
+    if format not in (FORMAT_BW, FORMAT_RGB):
+      raise ValueError("invalid format specified when creating TBFImage")
     self.format = format
     self.width = width
     self.height = height
@@ -84,7 +97,8 @@ class TBFImage(object):
         with wi.Image(width=self.width*zoom, height=self.height*zoom) as img:
           frame.draw(img, zoom)
           anim.sequence.append(img)
-          anim.sequence[-1].delay = (frame.duration if frame.duration else 0) // 10  # ms --> 1/100s of a second
+          with anim.sequence[-1] as lastframe:
+            lastframe.delay = (frame.duration if frame.duration else 0) // 10  # ms --> 1/100s of a second
       anim.type = 'optimize'
       anim.save(filename=filename)
 
@@ -101,7 +115,7 @@ class TBFImage(object):
     for frame in self.frames:
       for y in range(0, frame.height):
         for x in range(0, frame.width):
-          pixeldata.append(_pack_value(self.format, frame.pixels[y*self.width + x]))
+          pixeldata.append(_pack_value(self.format, frame.get_raw_pixel(x, y)))
       if len(self.frames) > 1:
         pixeldata.append("0b{0:08b}".format(frame.duration))
 
@@ -133,6 +147,21 @@ def _pack_value(format, val):
     raise Exception("tried to pack a value with an invalid format")
 
 
+def _transform_value(px, format):
+  if format == FORMAT_RGB:
+    return (int(round(px[0] / 255.0)), int(round(px[1] / 255.0)), int(round(px[2] / 255.0)))
+  else:
+    return int(round(math.mean(px) / 255.0))
+
+
+def _populate_frame_from_image(frame, img, format):
+  blob = img.make_blob(format='RGB')
+  for y in range(img.height):
+    for x in range(img.width):
+      base = y*img.width*3 + x*3
+      frame.set_pixel(x, y, _transform_value((blob[base], blob[base+1], blob[base+2]), format))
+
+
 def from_file(filename):
   with open(filename, "rb") as f:
     data = f.read()
@@ -154,7 +183,27 @@ def from_file(filename):
       for y in range(height):
         for x in range(width):
           val = _unpack_value(format, pixeldata)
-          frame.set_pixel(x, y, val)
+          frame.set_raw_pixel(x, y, val)
       if len(pixeldata) >= pixeldata.pos + 8:
         frame.duration = pixeldata.read('uint:8')
     return img
+
+
+def from_other_image(filename, format = None):
+  with wi.Image(filename=filename) as wimg:
+    # Auto-detect format if not specified
+    if format is None:
+      format = FORMAT_RGB if (wimg.colorspace != 'gray') else FORMAT_BW
+    img = TBFImage(format, wimg.width, wimg.height)
+    if wimg.sequence is not None:
+      for i in range(len(wimg.sequence)):
+        with wimg.sequence[i] as si:
+          with si.clone() as sic:
+            f = img.start_frame()
+            _populate_frame_from_image(f, sic, format)
+            f.duration = si.delay * 10  # 1/100s --> ms
+    else:
+      f = img.start_frame()
+      _populate_frame_from_image(f, wimg, format)
+  return img
+
