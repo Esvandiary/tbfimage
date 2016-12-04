@@ -1,5 +1,5 @@
 # tbfimage
-A Python library for decoding and encoding the lesser-known TBF image file format.
+A Python library for encoding and decoding the lesser-known TBF image file format.
 
 ## Requirements
 The library requires the `six` and `wand` packages.
